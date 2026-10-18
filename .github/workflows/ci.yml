@@ -46,17 +46,23 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push image
+      # Build into the local Docker daemon only; nothing is published yet
+      - name: Build image
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: true
+          load: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/fastapi-ci-demo:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/fastapi-ci-demo:${{ github.sha }}
+
       - name: Smoke test the image
         run: |
           docker run -d -p 8000:8000 --name test-container ${{ secrets.DOCKERHUB_USERNAME }}/fastapi-ci-demo:${{ github.sha }}
-          sleep 5
-          curl --fail http://localhost:8000/health
+          curl --fail --retry 10 --retry-all-errors --retry-delay 1 http://localhost:8000/health \
+            || { docker logs test-container; exit 1; }
           docker stop test-container
+
+      # Only reached if the smoke test passed
+      - name: Push image
+        run: docker push --all-tags ${{ secrets.DOCKERHUB_USERNAME }}/fastapi-ci-demo

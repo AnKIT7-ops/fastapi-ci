@@ -11,8 +11,8 @@ Every push to `main` automatically:
 1. Lints the code (ruff)
 2. Runs the test suite (pytest)
 3. Builds a hardened Docker image — only if the above pass
-4. Publishes to Docker Hub with both `latest` and commit-SHA tags
-5. Smoke-tests the published image to verify the container actually starts
+4. Smoke-tests the built image to verify the container actually starts
+5. Publishes to Docker Hub with both `latest` and commit-SHA tags — only if the smoke test passes
 
 Pull requests run steps 1–2 only; nothing is published until code is merged.
 
@@ -27,7 +27,7 @@ push / PR
 │ (only if green, and only on push to main)
 ▼
 ┌─────────────────┐
-│ build-and-push │ docker build → Docker Hub → smoke test
+│ build-and-push │ docker build → smoke test → Docker Hub
 └─────────────────┘
 
 ## Running locally
@@ -76,9 +76,10 @@ cheap check avoids spending pipeline time on code that won't pass basic standard
 runner's throwaway copy and pass green while the repo stays broken. CI verifies;
 it doesn't mutate.
 
-**Smoke test after publish** — `CMD` is never executed during `docker build`, so a
-broken start command builds and publishes successfully but crashes at runtime.
-The smoke test starts the published image and hits `/health` to close that gap.
+**Smoke test before publish** — `CMD` is never executed during `docker build`, so a
+broken start command builds successfully but crashes at runtime. The image is built
+into the runner's local Docker daemon, started, and `/health` is checked; it is
+pushed to Docker Hub only if that passes, so a broken image never reaches the registry.
 
 **Credentials via GitHub Secrets** — the registry token is stored encrypted and
 injected at runtime. Nothing sensitive lives in the repository.
